@@ -1,234 +1,155 @@
-# @yukiakai/deptrace
+# @yukiakai/path-extra
 
-Dependency auditing and upgrade planning for JavaScript and TypeScript projects.
+Extra path utilities for Node.js with consistent cross-platform behavior.
 
-`@yukiakai/deptrace` helps identify:
-
-* Vulnerable dependencies
-* Available upgrades
-* Upgrade blockers
-* Dependency transparency information
-* Root dependencies responsible for vulnerable dependency chains
-
-Unlike traditional vulnerability scanners, deptrace does not rely on
-advisory-level upgrade suggestions alone.
-
-For each vulnerable dependency, deptrace traces the dependency graph
-back to the root dependencies that introduce it and evaluates whether
-an upgrade actually removes the vulnerable package from the resolved
-dependency tree.
-
-This helps avoid remediation recommendations that appear valid but
-still leave vulnerable dependencies reachable after installation.
+Built on top of `pathe` to provide predictable path handling across Windows and POSIX environments.
 
 ## Features
 
-* Security auditing
-* Latest version auditing
-* Root dependency remediation analysis
-* Dependency graph resolution
-* Dependency chain analysis
-* Upgrade planning
-* Workspace and monorepo support
-* JSON and console reports
-* Dependency transparency reporting
-* Conservative handling of non-registry dependency sources
-
----
+- Cross-platform consistent behavior
+- Directory traversal protection helpers
+- Safe path resolution utilities
+- Relative path normalization
+- ESM-friendly
+- TypeScript support
 
 ## Installation
 
 ```bash
-npm install -g @yukiakai/deptrace
+npm install @yukiakai/path-extra
 ```
 
-then
+## Usage
 
-```bash
-npx deptrace
-```
-
----
-
-## Commands
-
-### Security Audit
-
-Analyze project dependencies for known vulnerabilities.
-
-```bash
-deptrace security
+```ts
+import {
+  isInside,
+  assertInside,
+  resolveInside,
+  resolveRelativeInside,
+  normalizeRelative,
+} from '@yukiakai/path-extras';
 ```
 
 ---
 
-### Latest Audit
+# API
 
-Analyze available dependency upgrades.
+## isInside
 
-```bash
-deptrace latest
+Checks whether a target path stays inside a base directory.
+
+```ts
+isInside(base: string, target: string): boolean
+```
+
+### Example
+
+```ts
+isInside('/app', 'src/index.ts');
+// true
+
+isInside('/app', '../etc/passwd');
+// false
 ```
 
 ---
 
-## Examples
+## assertInside
 
-Audit the current project:
+Throws an error if the target path escapes the base directory.
 
-```bash
-deptrace security
+```ts
+assertInside(base: string, target: string): void
 ```
 
-Check available upgrades:
+### Example
 
-```bash
-deptrace latest
-```
+```ts
+assertInside('/app', 'src/index.ts');
 
-Audit multiple projects in a monorepo:
-
-```bash
-deptrace security --project-dir packages/*
-```
-
-Include prerelease versions:
-
-```bash
-deptrace latest --include-prerelease
-```
-
-Generate JSON output:
-
-```bash
-deptrace security --output-format json
-```
-
-Save JSON output:
-
-```bash
-deptrace security --output-format json > report.json
+assertInside('/app', '../etc/passwd');
+// Error: Path escapes base directory
 ```
 
 ---
 
-## Options
+## resolveInside
 
-### Common Options
+Safely resolves a path inside a base directory.
 
-| Option                        | Description                                                 |
-| ----------------------------- | ----------------------------------------------------------- |
-| `--project-dir <pattern...>`  | Project directory glob patterns                             |
-| `--output-format <format>`    | Output format (`console`, `json`)                           |
-| `--show-transparency`         | Show dependency transparency information                    |
-| `--allow-external-sources`    | Follow non-registry dependencies during dependency analysis |
-| `--include-prerelease`        | Include prerelease versions                                 |
-| `--minimum-release-age <age>` | Minimum release age (e.g. `7d`, `24h`, `30m`)               |
+Returns an absolute normalized path.
 
----
+```ts
+resolveInside(base: string, target: string): string
+```
 
-## External Dependency Sources
+### Example
 
-By default, deptrace only follows dependencies that can be resolved through package registries.
+```ts
+resolveInside('/app', 'src/index.ts');
+// /app/src/index.ts
 
-External dependency sources such as:
-
-* `git:`
-* `file:`
-* `directory:`
-* `workspace:`
-* remote tarballs
-
-are ignored during dependency graph expansion unless explicitly enabled.
-
-This behavior makes analysis deterministic and independent from
-platform-specific package manager resolution behavior.
-
-Enable external source traversal:
-
-```bash
-deptrace latest --allow-external-sources
+resolveInside('/app', '../etc/passwd');
+// Error
 ```
 
 ---
 
-## Output Formats
+## resolveRelativeInside
 
-### Console
+Safely resolves a path and returns a normalized relative path.
 
-Human-readable output optimized for local development.
-
-```bash
-deptrace latest
+```ts
+resolveRelativeInside(base: string, target: string): string
 ```
 
-### JSON
+### Example
 
-Machine-readable output optimized for automation and CI/CD.
-
-```bash
-deptrace latest --output-format json
+```ts
+resolveRelativeInside('/app', 'src/../package.json');
+// package.json
 ```
 
 ---
 
-## Monorepo Support
+## normalizeRelative
 
-Analyze multiple projects using glob patterns.
+Normalizes a relative path against a base directory.
 
-```bash
-deptrace security \
-  --project-dir packages/*
+This function does NOT prevent directory traversal.
+
+```ts
+normalizeRelative(base: string, target: string): string
 ```
 
-```bash
-deptrace latest \
-  --project-dir apps/* \
-  --project-dir packages/*
-```
+### Example
 
----
+```ts
+normalizeRelative('/app', 'src/../package.json');
+// package.json
 
-## Release Age Filtering
-
-New package releases may occasionally contain regressions.
-
-Use release age filtering to avoid recommending versions that were published too recently.
-
-Example:
-
-```bash
-deptrace latest --minimum-release-age 7d
-```
-
-Supported units:
-
-* `s`
-* `m`
-* `h`
-* `d`
-
-Examples:
-
-```text
-30m
-12h
-7d
-30d
+normalizeRelative('/app', '../outside');
+// ../outside
 ```
 
 ---
 
-## Why Not npm audit?
+# Why use this package?
 
-deptrace focuses on dependency graph remediation rather than advisory reporting.
+Node.js native `path` behavior can vary between operating systems.
 
-npm audit may recommend upgrades based on advisory metadata alone.
+This package uses `pathe` internally to provide more predictable and consistent behavior across platforms.
 
-deptrace evaluates whether a remediation actually removes or patches the vulnerable dependency in the resolved dependency graph before reporting it as a fix candidate.
+Examples of issues this package helps avoid:
+
+- Windows vs POSIX separator differences
+- Path traversal vulnerabilities
+- Inconsistent normalization behavior
+- Absolute path edge cases
 
 ---
 
-## License
+# License
 
-MIT Yuki Akai
+MIT
